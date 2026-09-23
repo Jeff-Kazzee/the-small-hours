@@ -1,0 +1,151 @@
+<title>Finite Time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:ital,wght@0,400;0,500;1,400;1,500&family=Alegreya+SC:wght@500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --ground: #0e0b09; --panel: #16110e; --line: #2c231d; --text: #ebe0cb; --muted: #9b9083; --faint: #6c6258;
+  --ochre: #c9623a; --ochre-soft: rgba(201, 98, 58, 0.14); --ember: #f2a444;
+  --display: "Alegreya SC", "Alegreya", Georgia, serif; --serif: "Alegreya", Georgia, serif; --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+:root[data-theme="light"] { color-scheme: dark; }
+html, body { background: var(--ground); color: var(--text); margin: 0; }
+body { font-family: var(--serif); font-size: 17px; line-height: 1.5; padding: 28px 16px 64px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 20px; }
+header h1 { font-family: var(--display); font-weight: 500; font-size: clamp(26px, 4vw, 38px); letter-spacing: 0.14em; margin: 0; }
+header p { margin: 4px 0 0; color: var(--muted); font-style: italic; max-width: 60ch; }
+.stage { position: relative; aspect-ratio: 16 / 9; background: #050302; border: 1px solid var(--line); overflow: hidden; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.stage:fullscreen { border: 0; background: #000; display: grid; place-items: center; }
+.stage:fullscreen canvas { position: relative; width: min(100vw, 177.78vh); height: auto; aspect-ratio: 16 / 9; }
+.veil { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(6, 4, 3, 0.35); }
+.veil[hidden] { display: none; }
+.bigplay { display: grid; place-items: center; gap: 12px; background: none; border: 0; color: var(--text); cursor: pointer; font: 12px var(--mono); letter-spacing: 0.18em; text-transform: uppercase; }
+.bigplay .ring { width: 88px; height: 88px; border-radius: 50%; border: 1.5px solid rgba(235, 224, 203, 0.7); display: grid; place-items: center; background: rgba(14, 11, 9, 0.5); }
+.bigplay svg { width: 28px; height: 28px; margin-left: 5px; fill: var(--text); }
+.loading { width: min(320px, 70%); display: grid; gap: 10px; font: 12px var(--mono); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+.bar { height: 2px; background: var(--line); } .bar i { display: block; height: 100%; width: 0; background: var(--ember); }
+.transport { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 14px; }
+.btn { font: 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text); background: #1d1713; border: 1px solid var(--line); padding: 9px 14px; cursor: pointer; border-radius: 2px; }
+.icon-btn { width: 42px; height: 42px; display: grid; place-items: center; padding: 0; } .icon-btn svg { width: 16px; height: 16px; fill: var(--text); }
+.btn:focus-visible, .scrub:focus-visible, .scenes li:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.clock { font: 13px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scrubwrap { position: relative; height: 42px; }
+.scrub { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.track { position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--line); pointer-events: none; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ember); }
+.track .head { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--text); }
+.ticks { position: absolute; inset: 0; pointer-events: none; } .ticks span { position: absolute; top: 6px; bottom: 6px; border-left: 1px solid #3a2f27; }
+.card { background: var(--panel); border: 1px solid var(--line); padding: 20px 22px; }
+.card h2 { margin: 0 0 12px; font: 400 12px var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.scenes { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.scenes li { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 6px 8px; cursor: pointer; border-left: 2px solid transparent; color: #cfc4b0; }
+.scenes li:hover { color: var(--text); }
+.scenes li.now { color: var(--text); border-left-color: var(--ochre); background: var(--ochre-soft); }
+.scenes time { font: 13px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .transport { grid-template-columns: auto 1fr auto; } .clock { display: none; } }
+body.render { padding: 0; background: #000; }
+body.render .wrap > :not(.stage) { display: none; }
+body.render .wrap { max-width: none; display: block; }
+body.render .stage { width: 1920px; height: 1080px; border: 0; aspect-ratio: auto; }
+body.render .veil { display: none; }
+</style>
+<div class="wrap">
+  <header>
+    <h1>Finite Time</h1>
+    <p>A father tells his daughter a bedtime story about a river that could think.</p>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="cv" width="1280" height="720" aria-label="Animated short film"></canvas>
+    <div class="veil" id="veil">
+      <div class="loading" id="loading"><span id="loadtxt">Painting the sets</span><div class="bar"><i id="loadbar"></i></div></div>
+      <button class="bigplay" id="bigplay" hidden aria-label="Play"><span class="ring"><svg viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg></span><span>Play with sound</span></button>
+    </div>
+  </div>
+  <div class="transport">
+    <button class="btn icon-btn" id="pp" aria-label="Play"><svg viewBox="0 0 24 24" id="ppicon"><path d="M6 4l14 8-14 8z"/></svg></button>
+    <span class="clock" id="clock">0:00 / 7:08</span>
+    <div class="scrubwrap">
+      <div class="track"><div class="fill" id="fill"></div><div class="head" id="head"></div></div>
+      <div class="ticks" id="ticks"></div>
+      <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" step="1" aria-label="Seek">
+    </div>
+    <button class="btn icon-btn" id="fs" aria-label="Fullscreen"><svg viewBox="0 0 24 24"><path d="M3 3h7v2H5v5H3zm11 0h7v7h-2V5h-5zM3 14h2v5h5v2H3zm16 0h2v7h-7v-2h5z"/></svg></button>
+  </div>
+  <section class="card"><h2>Scenes</h2><ol class="scenes" id="scenes"></ol></section>
+</div>
+<script src="engine.js"></script>
+<script src="timeline.js"></script>
+<script src="film-core.js"></script>
+<script src="film-fable.js"></script>
+<script src="film-family.js"></script>
+<script src="film-eval.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const params = new URLSearchParams(location.search), RENDER = params.has('render');
+  const cv = $('cv'), ctx = cv.getContext('2d'), stage = $('stage');
+  const audio = new Audio(); audio.preload = 'auto';
+  const S = { ready: false, playing: false, started: false, lastT: -1, dirty: true };
+  const fmt = (s) => { s = Math.max(0, s); return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; };
+  function fit() {
+    if (RENDER) { cv.width = 1920; cv.height = 1080; RS = 1; return; }
+    if (window.__shooting) return;
+    const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(480, Math.min(1920, Math.round(r.width * dpr)));
+    if (cv.width !== w) { cv.width = w; cv.height = Math.round((w * 9) / 16); RS = cv.width / W; S.dirty = true; BUF = null; PEEL_BUF = null; }
+  }
+  if (RENDER) document.body.classList.add('render');
+  window.addEventListener('resize', fit); document.addEventListener('fullscreenchange', () => setTimeout(fit, 50));
+  const dur = () => FILM_LEN;
+  function seek(a) { a = clamp(a, 0, dur() - 0.05); audio.currentTime = a; S.dirty = true; }
+  function play() { if (!S.ready) return; S.started = true; $('veil').hidden = true; if (audio.ended) audio.currentTime = 0; audio.play().catch(() => { S.playing = false; setPP(); }); S.playing = true; setPP(); }
+  function pause() { audio.pause(); S.playing = false; setPP(); S.dirty = true; }
+  function setPP() { $('ppicon').innerHTML = S.playing ? '<path d="M6 4h4v16H6zm8 0h4v16h-4z"/>' : '<path d="M6 4l14 8-14 8z"/>'; $('pp').setAttribute('aria-label', S.playing ? 'Pause' : 'Play'); }
+  audio.addEventListener('ended', () => { S.playing = false; setPP(); });
+  $('pp').onclick = () => (S.playing ? pause() : play()); $('bigplay').onclick = play;
+  $('scrub').addEventListener('input', (e) => seek((e.target.value / 1000) * dur()));
+  $('fs').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen && stage.requestFullscreen().catch(() => {}); };
+  stage.addEventListener('click', (e) => { if (e.target === cv && S.started) (S.playing ? pause() : play()); });
+  window.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' && e.target.type !== 'range') return;
+    if (e.code === 'Space' && e.target.tagName !== 'BUTTON') { e.preventDefault(); S.playing ? pause() : play(); }
+    if (e.code === 'ArrowRight') seek(audio.currentTime + 5); if (e.code === 'ArrowLeft') seek(audio.currentTime - 5);
+    if (e.key === 'f') $('fs').click();
+  });
+  // scene list (chapter names only, nothing that gives the story away)
+  const chapters = TL.scenes.filter((s) => s.chapter);
+  const list = $('scenes');
+  chapters.forEach((s, i) => { const li = document.createElement('li'); li.tabIndex = 0; li.dataset.i = i; li.innerHTML = `<time>${fmt(s.t0)}</time><span>${s.chapter}</span>`; li.onclick = () => { seek(s.t0); if (!S.playing) play(); }; li.onkeydown = (e) => { if (e.key === 'Enter') li.click(); }; list.appendChild(li); const tk_ = document.createElement('span'); tk_.style.left = `${(s.t0 / FILM_LEN) * 100}%`; $('ticks').appendChild(tk_); });
+  function updateUI(t) {
+    const k = clamp(t / dur());
+    $('fill').style.width = `${k * 100}%`; $('head').style.left = `${k * 100}%`;
+    if (document.activeElement !== $('scrub')) $('scrub').value = Math.round(k * 1000);
+    $('clock').textContent = `${fmt(t)} / ${fmt(dur())}`;
+    let cur = -1; chapters.forEach((s, i) => { if (t >= s.t0) cur = i; });
+    list.querySelectorAll('li').forEach((li) => li.classList.toggle('now', +li.dataset.i === cur));
+  }
+  function frame() {
+    requestAnimationFrame(frame);
+    if (!S.ready) return;
+    const t = S.started ? audio.currentTime : 0.0;
+    if (!S.playing && !S.dirty && Math.abs(t - S.lastT) < 1e-3) return;
+    S.dirty = false; S.lastT = t;
+    renderFrame(ctx, clamp(t, 0, FILM_LEN - 0.01));
+    updateUI(t);
+  }
+  let resolveReady; const ready = new Promise((r) => (resolveReady = r));
+  window.__film = { ready, renderAt(t) { renderFrame(ctx, t); }, frameJPEG(t, q = 0.94) { renderFrame(ctx, t); return cv.toDataURL('image/jpeg', q); }, FILM_LEN };
+  (async function boot() {
+    fit();
+    try { await Promise.race([Promise.all(['italic 500 46px Alegreya', '500 92px "Alegreya SC"', 'italic 400 38px Alegreya', '400 30px "IBM Plex Mono"', '500 22px "IBM Plex Mono"'].map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 4000))]); } catch (e) {}
+    await buildAssets((p) => { $('loadbar').style.width = `${p * 90}%`; });
+    buildShots();
+    audio.src = params.get('audio') || 'finite-time.mp3';
+    S.ready = true; $('loading').hidden = true; $('bigplay').hidden = false; S.dirty = true;
+    if (params.has('t')) { const t = +params.get('t'); renderFrame(ctx, t); S.started = false; }
+    resolveReady(true);
+    if (!RENDER) requestAnimationFrame(frame);
+  })().catch((e) => { $('loadtxt').textContent = 'Something failed while painting. Reload the page.'; console.error(e); window.__filmError = String(e && e.stack || e); });
+})();
+</script>
